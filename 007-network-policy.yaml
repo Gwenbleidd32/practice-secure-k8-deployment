@@ -1,0 +1,109 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolation-policy
+  namespace: lizzoslunch
+spec:
+  podSelector: #{}              
+    matchLabels:
+      app: type-a     # Applies to only a specific group of pods within our namespace
+  policyTypes:      # Establishing rules after Deny all is implied upon Policy creation
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+      - podSelector:  
+          matchLabels:
+            app: type-a 
+  - from:
+      - ipBlock:
+          cidr: 0.0.0.0/0     # Allow traffic from external sources 
+    ports:          # Can be finegrained and sync'd up with your load balancer's allowed Ranges.
+    - protocol: TCP
+      port: 80            # Allow traffic on port 80
+    - protocol: TCP
+      port: 5000         # Allow traffic on port 5000
+  egress:
+  - to:
+      - namespaceSelector:  
+          matchLabels:
+            app: database      # Dummy label for a database namespace
+        podSelector: #{}
+            matchLabels:
+              app: database-app  # Dummy label for a database pods in another namespace
+  - to:
+      - ipBlock:                 
+          cidr: 10.176.76.4/32     #Allowing Export to my PSC Endpoint
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443                      
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolation-policy-2
+  namespace: lizzoslunch
+spec:
+  podSelector: 
+    matchLabels:
+      io.kompose.service: splunkenterprise   
+  policyTypes:                                  
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+      - ipBlock:
+          cidr: 0.0.0.0/0     # Allow traffic from external sources, Can be specified to company ranges
+    ports:                                  
+    - protocol: TCP
+      port: 80  
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 9997  
+    - protocol: TCP
+      port: 8088  
+    - protocol: TCP
+      port: 1514    
+  egress:
+  - to:
+      - podSelector:  
+          matchLabels:
+            app: type-a  # Splunk can only monitor type-a pods
+
+                          
+
+
+
+
+
+#Notes: 
+
+# By using namespaceSelector: or Pod Selector, you can specify scope of traffic acces by pod group or namespace group.
+
+# This can be layered with the pod selector to provide ultra fine grained access for you group of pods or namespaces. 
+
+# You're allowed multiple groups of ingress sources to be granular with your policies.
+
+# Network Policies create policy Rules for specific groups of pods in your specified namespace.
+
+# You can create different policies for different groups of pods Or one policy for multiple groups of pods.
+
+# {} Braces to denote groups of pods or namespaces. 
+
+
+# By establishing a network policy we set a baseline of deny all. 
+# Then we build upon how we declare accesibility through our policy types.
+
+# So you can't define a namespace selector on the spec level as the namespace is defined in meta-data of your policy. 
+
+# But you can either target a group of pods in the spec or it's entire namespaces
+# When you move on to your policy type attributes, you can apply namespace or pod access to your spec pod selector
+
+#Simple is best when designing your network policies.
+#Due to it's implicit deny all status, things can get hairy when you combine namespace rules to application rules
+#Make the choice to create policies around the network or the application and stick to it.
+
+# It is ivery important for you to make sure have the correct match labels for you applications.
