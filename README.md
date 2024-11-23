@@ -1,4 +1,4 @@
-*Secure Kubernetes Stateful Application Configuration
+* Secure Kubernetes Stateful Application Configuration
 
 This repository contains working iterations of a secure Kubernetes stateful application configuration. The development began after encouragement from Theo following our study of [NIST SP 800-190](https://csrc.nist.gov/publications/detail/sp/800-190/final). My objective was to adapt a basic Kubernetes application to adhere to best practices by observing alerts received in the pipeline and applying new methods of protection learned from NIST guidelines and other Kubernetes documentation.
 
