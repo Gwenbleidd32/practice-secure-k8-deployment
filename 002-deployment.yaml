@@ -8,35 +8,102 @@ spec:
   selector:
     matchLabels:
       app: type-a
+  updateStrategy:
+    type: RollingUpdate # When this configuration is re-applied, pods are gracefully updated with new configuration.
   template:
     metadata:
       labels:
         app: type-a
+        istio: monitor
     spec:
-      automountServiceAccountToken: false
-      containers:
-      - name: giftwrapped-container
-        image: gwenbleidd/cahir:v1.0.0
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 5000  # Ensure you change this to a non-privileged port like 8080 if needed
-        securityContext:
-          seccompProfile:
-            type: RuntimeDefault
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 5000
+      automountServiceAccountToken: false 
+#>>>>>-------------------INITILIZATION-CONTAINER-------------------------------
+# Designed to establish the correct permissions for the mounted storage class.
+# Without breaking the security context of the container.
+# Begins processes and terminates before the main container starts.
+#>>>>>-------------------------------------------------------------------------
+      initContainers:  
+      - name: title-granter  
+        image: busybox
+        command: ["sh", "-c", "chown 5000:5000 /data && chmod 700 /data"] # Script to grant main container read/write permissions.
+      #>>> STATEFUL-SET MOUNT-PATH
+        volumeMounts: 
+        - name: orbiter-module
+          mountPath: /data
+      #>>> RESOURCE-REQUESTS
+        resources:
+          requests: # Minimum resources 
+            memory: "64Mi"  
+            cpu: "50m"            
+          limits: # Maximum resources
+            memory: "128Mi"      
+            cpu: "100m"    
+      #>>> SECURITY-CONTEXT
+        securityContext: 
+          runAsUser: 0
           allowPrivilegeEscalation: false
           capabilities:
+            add:  
+              - CHOWN # Needed for "chown 5000:5000 /data"
+              - FOWNER # Needed for "chmod 700 /data"
+            drop:
+            - ALL 
+#>>>>>------------------------MAIN-CONTAINER-----------------------------------
+      containers:
+      - name: giftwrapped-container
+        image: europe-central2-docker.pkg.dev/pooper-scooper/run-gmp/milk:v2
+        imagePullPolicy: Always
+      #>>> PORTS 
+        ports:
+        - name: http 
+          containerPort: 5000  
+        - name: http-envoy-prom # prom istio port
+          containerPort: 15090 # prom-monitoring default
+      #>>> SECURITY-CONTEXT
+        securityContext: 
+          seccompProfile:
+            type: RuntimeDefault 
+          readOnlyRootFilesystem: true 
+          runAsNonRoot: true # <
+          runAsUser: 5000 #
+          allowPrivilegeEscalation: false 
+          capabilities: 
             drop:
             - ALL
+      #>>> RESOURCE-REQUESTS
         resources:
-          requests:
-            memory: "256Mi"  # Minimum memory requested
-            cpu: "250m"      # Minimum CPU requested
-          limits:
-            memory: "512Mi"    # Maximum memory allowed
-            cpu: "500m"     # Maximum CPU allowed            
+          requests: # Minimum resources
+            memory: "256Mi"  
+            cpu: "250m"            
+          limits: # Maximum resources
+            memory: "512Mi"      
+            cpu: "500m"    
+      #>>> STATEFUL-SET MOUNT-PATH
+        volumeMounts:          
+        - name: orbiter-module
+          mountPath: /data
+      #>>> OPTIONAL ENVIORNMENT VARIABLE for MOUNT-PATH 
+        env:       
+        - name: library_path
+          value: "/data" 
+      #>>> INIT/CONTAINER SCRIPT TO TEST MOUNT PATH AND WRITE ACCCESS.    
+        command: ["sh", "-c", "python app.py & while true; do date >> /data/date.txt; sleep 30; done"] 
+      #>>> LIVENESS AND READINESS PROBES
+        readinessProbe:
+          httpGet:
+            path: /i-am-ready
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+        livenessProbe:
+          httpGet:
+            path: /i-am-alive
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 1
+#>>>>>------------------STATEFULSET-VOLUME-CLAIM-------------------------------
   volumeClaimTemplates:
   - metadata:
       name: orbiter-module
@@ -46,3 +113,5 @@ spec:
         requests:
           storage: 1Gi
       storageClassName: "bordeaux"
+
+
